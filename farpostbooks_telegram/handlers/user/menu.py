@@ -23,6 +23,25 @@ async def search(_: Message, dialog_manager: DialogManager):
     )
 
 
+async def my_book(message: Message, dialog_manager: DialogManager):
+    book = await UserBookModel.get_or_none(
+        user_id=message.from_user.id,
+        back_timestamp__isnull=True
+    )
+    if book is None:
+        await message.answer(
+            '<b>📚 У вас еще нет книги, вы можете взять её в боте или на сайте.</b>'
+        )
+        return
+
+    await dialog_manager.start(
+        SearchBook.book,
+        data={'isbn': book.book_id},
+        mode=StartMode.RESET_STACK,
+        show_mode=ShowMode.EDIT
+    )
+
+
 def rating_button_creator():
     buttons = []
     for index in range(1, 6):
@@ -49,12 +68,13 @@ def generate_book_info(book: BookModel, on_shelf: bool):
 
 async def get_data(dialog_manager: DialogManager, **_):
     book = await BookModel.filter(
-        id=dialog_manager.dialog_data['isbn']
+        id=dialog_manager.dialog_data.get('isbn', dialog_manager.start_data.get('isbn'))
     ).first().prefetch_related(
         Prefetch('user_books', UserBookModel.filter(back_timestamp__isnull=True))
     )
     on_shelf = not book.user_books
     return {
+        'dialog_data': 'isbn' in dialog_manager.dialog_data,
         'path': f'images/{book.image}',
         'message': generate_book_info(book, on_shelf),
         'on_shelf': on_shelf
@@ -88,7 +108,7 @@ async def send_book(message: Message, _: MessageInput, manager: DialogManager):
 
 
 async def take_book(query: CallbackQuery, _: Any, manager: DialogManager):
-    isbn: int = manager.dialog_data['isbn']
+    isbn: int = manager.dialog_data.get('isbn', manager.start_data.get('isbn'))
 
     if await UserBookModel.get_or_none(
         user_id=query.from_user.id,
@@ -111,7 +131,7 @@ async def take_book(query: CallbackQuery, _: Any, manager: DialogManager):
 
 
 async def return_book(query: CallbackQuery, _: Any, manager: DialogManager):
-    isbn: int = manager.dialog_data['isbn']
+    isbn: int = manager.dialog_data.get('isbn', manager.start_data.get('isbn'))
 
     book = await UserBookModel.get_or_none(
         user_id=query.from_user.id,
@@ -131,7 +151,7 @@ async def on_rating_selected(
 ):
     await UserBookModel.filter(
         user_id=query.from_user.id,
-        book_id=manager.dialog_data['isbn'],
+        book_id=manager.dialog_data.get('isbn', manager.start_data.get('isbn')),
     ).update(
         back_timestamp=datetime.utcnow(),
         rating=int(query.data),
@@ -139,7 +159,7 @@ async def on_rating_selected(
     await manager.switch_to(SearchBook.book)
 
 
-search_dialog = Dialog(
+book_dialog = Dialog(
     Window(
         Const(
             '<b>🌐 Если вы знаете ISBN книги <i>(обычно он находится на задней '
@@ -169,7 +189,7 @@ search_dialog = Dialog(
             when=~F['on_shelf']
         ),
         Row(
-            Back(Const('🔙 Назад')),
+            Back(Const('🔙 Назад'), when=F['dialog_data']),
             Cancel(Const('🚪 Выйти')),
         ),
         getter=get_data,

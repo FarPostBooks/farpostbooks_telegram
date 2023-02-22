@@ -8,7 +8,7 @@ from tortoise import Tortoise
 
 from farpostbooks_telegram.handlers.guest import guest_router
 from farpostbooks_telegram.handlers.user import user_router
-from farpostbooks_telegram.handlers.user.search import search_dialog
+from farpostbooks_telegram.handlers.user.menu import book_dialog
 from farpostbooks_telegram.models.config import TORTOISE_CONFIG
 from farpostbooks_telegram.settings import settings
 
@@ -43,7 +43,7 @@ async def main():
         dp.include_router(router)
 
     registry = DialogRegistry(dp)
-    registry.register(search_dialog)
+    registry.register(book_dialog)
 
     dp.message.filter(F.chat.type == 'private')
     if await run_database():
