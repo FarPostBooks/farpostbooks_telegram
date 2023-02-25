@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 from typing import Any
 
@@ -146,7 +145,7 @@ async def return_book(query: CallbackQuery, _: Any, manager: DialogManager):
 
 async def on_rating_selected(
     query: CallbackQuery,
-    widget: Any,
+    _: Any,
     manager: DialogManager,
 ):
     await UserBookModel.filter(
