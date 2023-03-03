@@ -45,6 +45,7 @@ async def my_book(message: Message, dialog_manager: DialogManager):
 
 
 async def random_book(message: Message, dialog_manager: DialogManager):
+    await message.delete()
     books = await BookModel.annotate(
         count_not_taken_by_anyone=Count(
             "user_books",
