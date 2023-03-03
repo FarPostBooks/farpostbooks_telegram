@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from typing import Any
 
@@ -8,6 +9,8 @@ from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Cancel, Row, Back, Button
 from aiogram_dialog.widgets.media import StaticMedia
 from aiogram_dialog.widgets.text import Const, Format
+from tortoise.expressions import Q
+from tortoise.functions import Count
 from tortoise.query_utils import Prefetch
 
 from farpostbooks_telegram.misc.states import SearchBook
@@ -36,6 +39,36 @@ async def my_book(message: Message, dialog_manager: DialogManager):
     await dialog_manager.start(
         SearchBook.book,
         data={'isbn': book.book_id},
+        mode=StartMode.RESET_STACK,
+        show_mode=ShowMode.EDIT
+    )
+
+
+async def random_book(message: Message, dialog_manager: DialogManager):
+    books = await BookModel.annotate(
+        count_not_taken_by_anyone=Count(
+            "user_books",
+            _filter=Q(user_books__back_timestamp__isnull=True),
+        ),
+        count_not_taken_by_current_user=Count(
+            "user_books",
+            _filter=Q(user_books__user_id=message.from_user.id),
+        ),
+    ).filter(
+        Q(count_not_taken_by_anyone=0) |
+        Q(count_not_taken_by_current_user=0),
+    ).distinct().prefetch_related("user_books").all()
+    if not books:
+        await message.answer(
+            '<b>😢 Не удалось найти книгу для вас, '
+            'возможно нет свободных книг на полках.</b>'
+        )
+        return
+
+    book = secrets.choice(books)
+    await dialog_manager.start(
+        SearchBook.book,
+        data={'isbn': book.id},
         mode=StartMode.RESET_STACK,
         show_mode=ShowMode.EDIT
     )
